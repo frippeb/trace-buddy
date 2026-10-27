@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Trace Buddy</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trace Buddy">
+<meta name="theme-color" content="#FF8A3D">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    --orange: #FF8A3D;
+    --blue: #3D7BFF;
+    --yellow: #FFD23F;
+    --ink: #2A2118;
+    --paper: #FFF8EF;
+    --panel: rgba(0, 0, 0, .58);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--paper); color: var(--ink);
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none; touch-action: manipulation;
+  }
+  [hidden] { display: none !important; }
+  svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ---------- Home ---------- */
+  #home {
+    min-height: 100%; max-width: 520px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+    padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 20px);
+  }
+  h1 { margin: 4px 0 0; text-align: center; font-size: 40px; font-weight: 800; letter-spacing: -.5px; }
+  h1 span { color: var(--orange); }
+  .preview {
+    flex: 1; min-height: 240px; max-height: 440px;
+    display: grid; place-items: center; overflow: hidden;
+    background: #fff; border: 3px dashed #EAD9C4; border-radius: 24px; padding: 12px;
+  }
+  .preview img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; }
+  .empty { text-align: center; color: #A38E77; font-size: 18px; font-weight: 700; line-height: 1.5; }
+  .empty svg { width: 64px; height: 64px; stroke-width: 1.6; margin-bottom: 6px; }
+  .big {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; border: 0; border-radius: 20px; padding: 18px;
+    font: inherit; font-size: 20px; font-weight: 800; color: #fff; cursor: pointer;
+  }
+  .big.orange { background: var(--orange); }
+  .big.blue { background: var(--blue); }
+  .big:disabled { opacity: .35; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+  .tip { margin: 0; text-align: center; font-size: 14px; color: #8A7867; line-height: 1.4; }
+
+  /* ---------- Tracing ---------- */
+  #trace { position: fixed; inset: 0; background: #000; overflow: hidden; color: #fff; }
+  #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #stage { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  #picture { position: relative; transform-origin: center; will-change: transform; }
+  #overlay { display: block; width: 100%; height: auto; }
+  .grid {
+    position: absolute; inset: 0; display: none;
+    border: 2px solid rgba(255, 50, 50, .8);
+    background-image:
+      linear-gradient(rgba(255, 50, 50, .8) 2px, transparent 2px),
+      linear-gradient(90deg, rgba(255, 50, 50, .8) 2px, transparent 2px);
+    background-size: 25% 25%;
+  }
+  #picture.with-grid .grid { display: block; }
+  #touch { position: absolute; inset: 0; touch-action: none; }
+
+  .top {
+    position: absolute; left: 0; right: 0; top: 0;
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: calc(env(safe-area-inset-top) + 12px) 14px 0;
+    pointer-events: none;
+  }
+  .top > * { pointer-events: auto; }
+  .round {
+    width: 48px; height: 48px; flex: none; border: 0; border-radius: 50%;
+    display: grid; place-items: center; background: var(--panel); color: #fff;
+  }
+  .hint {
+    background: var(--panel); border-radius: 16px; padding: 10px 14px;
+    font-size: 15px; font-weight: 600; line-height: 1.3;
+  }
+  .panel {
+    position: absolute; left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom) + 10px);
+    max-width: 520px; margin: 0 auto;
+    background: var(--panel); border-radius: 24px; padding: 12px 12px 10px;
+  }
+  .slider { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+  input[type=range] { flex: 1; height: 34px; accent-color: var(--yellow); }
+  .buttons { display: flex; gap: 4px; margin-top: 8px; }
+  .btn {
+    flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: #fff;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font: inherit; font-size: 12px; font-weight: 700;
+  }
+  .btn .ic {
+    width: 48px; height: 48px; border-radius: 50%;
+    display: grid; place-items: center; background: rgba(255, 255, 255, .2);
+  }
+  .btn.on .ic { background: var(--yellow); color: #1A1A1A; }
+  #trace.locked .unlocked-only { display: none !important; }
+
+  .cover {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    padding: 32px; text-align: center; font-size: 18px; font-weight: 700;
+  }
+  #busy { background: rgba(0, 0, 0, .35); }
+  #camError { background: #111; }
+  #camError .box { max-width: 340px; display: grid; gap: 14px; }
+  #camError p { margin: 0; font-weight: 500; line-height: 1.45; color: #ddd; }
+</style>
+</head>
+<body>
+
+<!-- ===== Home screen ===== -->
+<section id="home">
+  <h1>Trace <span>Buddy</span></h1>
+
+  <div id="preview" class="preview">
+    <div class="empty">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><br>
+      Pick a picture to trace
+    </div>
+  </div>
+
+  <label class="big orange" for="file">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>
+    <span id="pickLabel">Choose a picture</span>
+  </label>
+  <input id="file" class="visually-hidden" type="file" accept="image/*">
+
+  <button id="start" class="big blue" disabled>
+    <svg viewBox="0 0 24 24"><path d="M15 4l5 5L9 20H4v-5z"/><path d="M13 6l5 5"/></svg>
+    Start tracing
+  </button>
+
+  <p class="tip" id="installTip">Tip: in Safari, tap <b>Share</b> then <b>Add to Home Screen</b> to keep Trace Buddy like an app.</p>
+</section>
+
+<!-- ===== Tracing screen ===== -->
+<section id="trace" hidden>
+  <video id="video" autoplay muted playsinline></video>
+
+  <div id="stage">
+    <div id="picture">
+      <img id="overlay" alt="">
+      <div class="grid"></div>
+    </div>
+  </div>
+
+  <!-- Catches finger gestures for moving the picture -->
+  <div id="touch"></div>
+
+  <div class="top">
+    <button class="round" id="close" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="hint unlocked-only">Put the phone on a stand above your paper. Drag, pinch and twist the picture to fit, then lock it.</div>
+  </div>
+
+  <div class="panel">
+    <div class="slider">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/></svg>
+      <input id="opacity" type="range" min="0.05" max="1" step="0.01" value="0.5" aria-label="How strong the picture looks">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg>
+    </div>
+    <div class="buttons">
+      <button class="btn unlocked-only" id="bLines">
+        <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17c3-6 5-9 7-9s-1 8 2 8 3-9 5-9 2 4 4 4"/></svg></span>Lines
+      </button>
+      <button class="btn unlocked-only" id="bFlip">
+        <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M9 7L3 17h6z"/><path d="M15 7l6 10h-6z"/></svg></span>Flip
+      </button>
+      <button class="btn unlocked-only" id="bGrid">
+        <span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg></span>Grid
+      </button>
+      <button class="btn unlocked-only" id="bReset">
+        <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></span>Reset
+      </button>
+      <button class="btn" id="bLight" hidden>
+        <span class="ic"><svg viewBox="0 0 24 24"><path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v12H9z"/><path d="M12 13v3"/></svg></span>Light
+      </button>
+      <button class="btn" id="bLock">
+        <span class="ic" id="lockIcon"></span><span id="lockLabel">Lock</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="busy" class="cover" hidden>Finding the lines…</div>
+
+  <div id="camError" class="cover" hidden>
+    <div class="box">
+      <div>The camera didn't start</div>
+      <p id="camMsg"></p>
+      <button class="big blue" id="camBack">Back</button>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+
+  const home = $("#home"), trace = $("#trace");
+  const fileInput = $("#file"), previewBox = $("#preview"), startBtn = $("#start");
+  const video = $("#video"), picture = $("#picture"), overlay = $("#overlay"), touch = $("#touch");
+  const opacityInput = $("#opacity"), busy = $("#busy"), camError = $("#camError");
+
+  const ICON_LOCKED = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  const ICON_UNLOCKED = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.6-1.8"/></svg>';
+
+  const MAX_SIDE = 2048;      // shrink huge photos so everything stays fast
+  const LINES_MAX_SIDE = 1400; // line finding works on a smaller copy
+
+  const st = {
+    canvas: null, photoURL: null, linesURL: null,
+    lines: false, flip: false, grid: false, locked: false, torch: false,
+    x: 0, y: 0, s: 1, r: 0, opacity: 0.5,
+  };
+  let stream = null, track = null, wakeLock = null;
+
+  // ---------- Remember the last picture between visits (IndexedDB) ----------
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open("trace-buddy", 1);
+      req.onupgradeneeded = () => req.result.createObjectStore("kv");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function savePicture(blob) {
+    try { (await openDB()).transaction("kv", "readwrite").objectStore("kv").put(blob, "picture"); } catch (e) {}
+  }
+  async function loadSavedPicture() {
+    try {
+      const db = await openDB();
+      return await new Promise((resolve) => {
+        const req = db.transaction("kv").objectStore("kv").get("picture");
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch (e) { return null; }
+  }
+
+  // ---------- Loading a picture ----------
+  const canvasToBlob = (c, type, q) => new Promise((res) => c.toBlob(res, type, q));
+
+  function scaledCanvas(source, w, h, maxSide) {
+    const k = Math.min(1, maxSide / Math.max(w, h));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * k));
+    c.height = Math.max(1, Math.round(h * k));
+    c.getContext("2d", { willReadFrequently: true }).drawImage(source, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  async function blobToCanvas(blob) {
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return scaledCanvas(img, img.naturalWidth, img.naturalHeight, MAX_SIDE);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function usePicture(blob, remember) {
+    const canvas = await blobToCanvas(blob);
+    const keepsTransparency = blob.type === "image/png" || blob.type === "image/webp" || blob.type === "image/gif";
+    const prepared = await canvasToBlob(canvas, keepsTransparency ? "image/png" : "image/jpeg", 0.92);
+
+    if (st.photoURL) URL.revokeObjectURL(st.photoURL);
+    if (st.linesURL) URL.revokeObjectURL(st.linesURL);
+    Object.assign(st, {
+      canvas, photoURL: URL.createObjectURL(prepared), linesURL: null,
+      lines: false, flip: false, x: 0, y: 0, s: 1, r: 0,
+    });
+
+    const img = new Image();
+    img.src = st.photoURL;
+    img.alt = "Your picture";
+    previewBox.replaceChildren(img);
+    startBtn.disabled = false;
+    $("#pickLabel").textContent = "Choose another picture";
+    if (remember) savePicture(prepared);
+  }
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+    previewBox.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      await usePicture(file, true);
+    } catch (e) {
+      previewBox.innerHTML = '<div class="empty">That picture didn\'t open.<br>Try another one.</div>';
+    }
+  });
+
+  // ---------- "Lines": turn the picture into an outline ----------
+  function makeLineArt(src) {
+    const w = src.width, h = src.height, n = w * h;
+    const d = src.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+
+    // 1. Grey version (see-through parts count as white paper).
+    const grey = new Float32Array(n);
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      const a = d[j + 3] / 255;
+      grey[i] = (0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]) * a + 255 * (1 - a);
+    }
+    // 2. Slight blur to ignore tiny specks.
+    const blur = new Float32Array(n);
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        blur[i] = (grey[i - w - 1] + grey[i - w] + grey[i - w + 1] + grey[i - 1] + grey[i] +
+                   grey[i + 1] + grey[i + w - 1] + grey[i + w] + grey[i + w + 1]) / 9;
+      }
+    }
+    // 3. Find edges (Sobel) and count how strong they are.
+    const mag = new Float32Array(n);
+    const hist = new Uint32Array(1024);
+    for (let y = 2; y < h - 2; y++) {
+      for (let x = 2; x < w - 2; x++) {
+        const i = y * w + x;
+        const gx = -blur[i - w - 1] - 2 * blur[i - 1] - blur[i + w - 1] + blur[i - w + 1] + 2 * blur[i + 1] + blur[i + w + 1];
+        const gy = -blur[i - w - 1] - 2 * blur[i - w] - blur[i - w + 1] + blur[i + w - 1] + 2 * blur[i + w] + blur[i + w + 1];
+        const v = Math.sqrt(gx * gx + gy * gy);
+        mag[i] = v;
+        hist[Math.min(1023, v | 0)]++;
+      }
+    }
+    // 4. Keep roughly the strongest 10% of edges, but never faint noise.
+    const keepBelow = Math.max(1, (w - 4) * (h - 4)) * 0.9;
+    let total = 0, t = 0;
+    for (; t < 1023; t++) { total += hist[t]; if (total >= keepBelow) break; }
+    t = Math.max(t, 40);
+
+    // 5. How dark each line pixel is.
+    const ink = new Uint8ClampedArray(n);
+    for (let i = 0; i < n; i++) ink[i] = (mag[i] - t) * 4;
+
+    // 6. Dark lines on a see-through background, thickened a little so they
+    //    are easy to see and follow with a pencil.
+    const out = new ImageData(w, h);
+    const o = out.data;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let a = 0;
+        for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) {
+          for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) {
+            const v = ink[yy * w + xx];
+            if (v > a) a = v;
+          }
+        }
+        const j = (y * w + x) * 4;
+        o[j] = o[j + 1] = o[j + 2] = 20;
+        o[j + 3] = a;
+      }
+    }
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    c.getContext("2d").putImageData(out, 0, 0);
+    return c;
+  }
+
+  async function toggleLines() {
+    if (!st.lines && !st.linesURL) {
+      busy.hidden = false;
+      await new Promise((r) => setTimeout(r, 50)); // let "Finding the lines…" show first
+      try {
+        const small = scaledCanvas(st.canvas, st.canvas.width, st.canvas.height, LINES_MAX_SIDE);
+        st.linesURL = URL.createObjectURL(await canvasToBlob(makeLineArt(small), "image/png"));
+      } catch (e) {
+        // Leave the normal picture showing.
+      } finally {
+        busy.hidden = true;
+      }
+      if (!st.linesURL) return;
+    }
+    st.lines = !st.lines;
+    showCurrentPicture();
+    render();
+  }
+
+  function showCurrentPicture() {
+    overlay.src = st.lines ? st.linesURL : st.photoURL;
+  }
+
+  // ---------- Drawing the picture on screen ----------
+  function sizePicture() {
+    const aspect = st.canvas.width / st.canvas.height;
+    const width = Math.min(window.innerWidth * 0.88, window.innerHeight * 0.68 * aspect);
+    picture.style.width = width + "px";
+  }
+
+  function render() {
+    picture.style.transform =
+      `translate(${st.x}px, ${st.y}px) rotate(${st.r}rad) scale(${st.s}) scaleX(${st.flip ? -1 : 1})`;
+    picture.style.opacity = st.opacity;
+    picture.classList.toggle("with-grid", st.grid);
+    $("#bLines").classList.toggle("on", st.lines);
+    $("#bFlip").classList.toggle("on", st.flip);
+    $("#bGrid").classList.toggle("on", st.grid);
+    $("#bLight").classList.toggle("on", st.torch);
+    $("#bLock").classList.toggle("on", st.locked);
+    $("#lockIcon").innerHTML = st.locked ? ICON_LOCKED : ICON_UNLOCKED;
+    $("#lockLabel").textContent = st.locked ? "Locked" : "Lock";
+    trace.classList.toggle("locked", st.locked);
+  }
+
+  // ---------- Finger gestures: drag, pinch, twist ----------
+  const pointers = new Map();
+  let gestureStart = null;
+
+  function snapshot() {
+    const p = [...pointers.values()];
+    const snap = { x: st.x, y: st.y, s: st.s, r: st.r, count: p.length, p };
+    if (p.length >= 2) {
+      const dx = p[1].x - p[0].x, dy = p[1].y - p[0].y;
+      snap.dist = Math.hypot(dx, dy) || 1;
+      snap.angle = Math.atan2(dy, dx);
+      snap.mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+    }
+    return snap;
+  }
+
+  touch.addEventListener("pointerdown", (e) => {
+    if (st.locked) return;
+    touch.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    gestureStart = snapshot();
+  });
+
+  touch.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId) || !gestureStart) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const p = [...pointers.values()];
+    const g = gestureStart;
+    if (p.length === 1 && g.count === 1) {
+      st.x = g.x + (p[0].x - g.p[0].x);
+      st.y = g.y + (p[0].y - g.p[0].y);
+    } else if (p.length >= 2 && g.count >= 2) {
+      const dx = p[1].x - p[0].x, dy = p[1].y - p[0].y;
+      st.s = Math.min(10, Math.max(0.1, g.s * (Math.hypot(dx, dy) / g.dist)));
+      st.r = g.r + (Math.atan2(dy, dx) - g.angle);
+      st.x = g.x + ((p[0].x + p[1].x) / 2 - g.mid.x);
+      st.y = g.y + ((p[0].y + p[1].y) / 2 - g.mid.y);
+    }
+    render();
+  });
+
+  function endPointer(e) {
+    if (!pointers.delete(e.pointerId)) return;
+    gestureStart = pointers.size ? snapshot() : null;
+  }
+  touch.addEventListener("pointerup", endPointer);
+  touch.addEventListener("pointercancel", endPointer);
+
+  // Stop Safari from zooming the whole page.
+  document.addEventListener("gesturestart", (e) => e.preventDefault());
+
+  // ---------- Camera ----------
+  async function startCamera() {
+    camError.hidden = true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showCameraError("This page has to be opened over a secure (https://) address for the camera to work.");
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      track = stream.getVideoTracks()[0];
+      const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+      $("#bLight").hidden = !caps.torch;
+    } catch (err) {
+      showCameraError(err && err.name === "NotAllowedError"
+        ? "Camera access is turned off. Ask a grown-up to allow the camera for this page (Settings → Safari → Camera, or the aA button in Safari's address bar)."
+        : "No camera was found, or another app is using it.");
+    }
+  }
+
+  function stopCamera() {
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null; track = null; st.torch = false;
+    video.srcObject = null;
+  }
+
+  function showCameraError(message) {
+    $("#camMsg").textContent = message;
+    camError.hidden = false;
+  }
+
+  async function setTorch(on) {
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: on }] });
+      st.torch = on;
+    } catch (e) {
+      st.torch = false;
+      $("#bLight").hidden = true;
+    }
+    render();
+  }
+
+  // ---------- Keep the screen awake while tracing ----------
+  async function keepAwake() {
+    try {
+      if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+    } catch (e) {}
+  }
+  function letSleep() {
+    if (wakeLock) wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || trace.hidden) return;
+    keepAwake();
+    if (!track || track.readyState === "ended") startCamera();
+  });
+
+  window.addEventListener("resize", () => { if (!trace.hidden && st.canvas) sizePicture(); });
+
+  // ---------- Screens and buttons ----------
+  function openTracing() {
+    home.hidden = true;
+    trace.hidden = false;
+    st.locked = false;
+    st.opacity = Number(opacityInput.value);
+    showCurrentPicture();
+    sizePicture();
+    render();
+    startCamera();
+    keepAwake();
+  }
+
+  function closeTracing() {
+    stopCamera();
+    letSleep();
+    pointers.clear();
+    gestureStart = null;
+    trace.hidden = true;
+    home.hidden = false;
+  }
+
+  startBtn.addEventListener("click", openTracing);
+  $("#close").addEventListener("click", closeTracing);
+  $("#camBack").addEventListener("click", closeTracing);
+
+  opacityInput.addEventListener("input", () => { st.opacity = Number(opacityInput.value); render(); });
+  $("#bLines").addEventListener("click", toggleLines);
+  $("#bFlip").addEventListener("click", () => { st.flip = !st.flip; render(); });
+  $("#bGrid").addEventListener("click", () => { st.grid = !st.grid; render(); });
+  $("#bReset").addEventListener("click", () => { Object.assign(st, { x: 0, y: 0, s: 1, r: 0 }); render(); });
+  $("#bLight").addEventListener("click", () => setTorch(!st.torch));
+  $("#bLock").addEventListener("click", () => {
+    st.locked = !st.locked;
+    pointers.clear();
+    gestureStart = null;
+    render();
+  });
+
+  // Hide the "Add to Home Screen" tip once it's already installed.
+  if (navigator.standalone || window.matchMedia("(display-mode: standalone)").matches) {
+    $("#installTip").hidden = true;
+  }
+
+  // Bring back the last picture used.
+  loadSavedPicture().then((blob) => { if (blob) usePicture(blob, false).catch(() => {}); });
+})();
+</script>
+</body>
+</html>
